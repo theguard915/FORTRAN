@@ -1,0 +1,42 @@
+program main
+  implicit none
+  integer:: m,stat1
+  real,allocatable,dimension(:,:):: b
+  real :: answer
+  m=4
+  allocate(b(m,m),stat=stat1)
+  b=reshape([1.,2.,0.,0.,0.,1.,2.,0.,0.,0.,1.,2.,2.,0.,0.,1.],[m,m])
+  call sol(b,m,answer)
+  write(*,*) answer
+  deallocate(b,stat=stat1)
+end program main
+
+recursive subroutine sol(a,n,ans)
+  integer,intent(in):: n
+  real,intent(in),dimension(n,n) :: a
+  real,intent(out):: ans
+  !integer,dimension(2) :: m
+  real,dimension(n-1,n-1) :: a1
+  integer:: i,j,k
+  real :: temp,s
+  s=0
+  if(n>2) then
+    do k=1,n
+        if(k/=1 .and. k/=n) then
+            a1(1:n-1,1:(k-1))=a(2:n,1:(k-1))
+            a1(1:n-1,k:n-1)=a(2:n,(k+1):n)
+        else if(k==1) then
+            a1=a(2:n,2:n)
+        else
+            a1=a(2:n,1:n-1)
+
+        end if
+    call sol(a1,n-1,temp)
+    s=s+a(1,k)*temp*(-1)**(1+k)
+    ans=s
+    end do
+  else
+    ans=a(1,1)*a(2,2)-a(1,2)*a(2,1)
+  end if
+
+end subroutine sol
