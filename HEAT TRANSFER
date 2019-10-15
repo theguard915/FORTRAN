@@ -1,0 +1,112 @@
+module var
+ save
+ real,allocatable,dimension(:):: T,x,ai,bi,ci,di	   !T为温度场，x坐标
+ integer :: node									   !ai*Ti=bi*Ti+1+ci*Ti-1+di
+ real :: xx				                !壁厚
+ real :: tf1,tf2,h1,h2,k,a,t1				!tf1,tf2分别是室内室外空气温度
+ end module var							!h1,h2分别是室内室外对流换热系数
+										!k为导热系数。a为热扩散系数
+ program main
+ use var
+ implicit none
+ integer :: i,n						
+ real :: dt,s,temp						!dt时间步长，temp记录初始内墙温度		
+ node=70							 	!node节点数
+ xx=0.4									!xx为壁厚
+ tf1=25.+273.15
+ tf2=-10.+273.15
+ t1=20.+273.15
+ a=0.75/(1.05e6)
+ dt=100.
+ h1=6.5
+ h2=40.
+ k=0.75									 
+ n=100000									!n为时间推进dt次数
+ s=0.
+ 								
+ allocate(t(node))						!分配数组空间
+ allocate(x(node))
+ allocate(ai(node))
+ allocate(bi(node))
+ allocate(ci(node))
+ allocate(di(node))
+
+ do i=1,node
+	x(i)=(2*real(i)-1)*xx/2./real(node)   !节点坐标
+	T(i)=t1-h1*x(i)*(tf1-t1)/k		  !初温
+	temp=T(1)
+	!write(*,*) T(i)
+ end do
+
+ do i=1,n
+ call fuzhi(dt)
+ call TDMA
+ if(T(1)<=(temp-0.15) .and. s==0. ) then	  !检测内墙温度的变化，输出内墙温度变化0.1K时的时间
+	s=real(i)*dt
+	write(*,*) s 
+ end if
+ end do
+
+ open(10,file='T.txt',action='write',status='new')
+ 
+ do i=1,node,7
+ write(*,*) x(i),(T(i)-273.15)
+ write(10,*) x(i),(T(i)-273.15)
+ 99 format('x=',f12.8,5x,'T=',f12.7)
+ end do
+
+ close(10)
+
+ deallocate(t)
+ deallocate(x)
+ deallocate(ai)
+ deallocate(bi)
+ deallocate(ci)
+ deallocate(di)
+ end
+										 !赋值函数，分别求出ai,bi,ci,di
+ subroutine fuzhi(dt)
+ use var
+ implicit none
+	real,intent(in):: dt
+	integer :: i
+	
+	do i=1,node
+	if(i/=1 .and. i/=node) then
+		ai(i)=a*dt/(xx/real(node))*2+xx/real(node)
+		bi(i)=a*dt/(xx/real(node))
+		ci(i)=a*dt/(xx/real(node))
+		di(i)=T(i)*xx/real(node)
+	else if(i==1) then
+		ai(i)=(k/(xx/real(node))+h1)
+		bi(i)=k/(xx/real(node))
+		ci(i)=0
+		di(i)=h1*tf1
+	else
+		ai(i)=(k/(xx/real(node))+h2)
+		bi(i)=0
+		ci(i)=k/(xx/real(node))
+		di(i)=h2*tf2
+	end if
+   end do
+
+ end subroutine fuzhi
+
+ subroutine TDMA				  !TDMA求解下一时刻温度场
+ use var
+ implicit none
+ real,dimension(node):: pi,qi
+ integer:: i
+ pi(1)=bi(1)/ai(1)
+ qi(1)=di(1)/ai(1)
+ 
+ do i=2,node
+	 pi(i)=bi(i)/(ai(i)-ci(i)*pi(i-1))
+	 qi(i)=(di(i)+ci(i)*qi(i-1))/(ai(i)-ci(i)*pi(i-1))
+ end do
+ T(node)=qi(node)
+ do i=node,2,-1
+	T(i-1)=T(i)*pi(i-1)+qi(i-1)
+ end do
+
+ end subroutine TDMA
